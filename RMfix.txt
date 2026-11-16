@@ -1,0 +1,2 @@
+Problem: Due to a critical Vulnerability found in one of the microservices. The Production instance of the application was brought down and several fixes were pushed to pre-prod environment which were not supposed 
+to go in until a certain date. Now the UAT environment had changes which were not Ready to go to production.
