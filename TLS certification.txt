@@ -1,0 +1,48 @@
+Northwell – TLS Certificate Verification Remediation
+High Priority – A7 Security Finding
+Issue: Nine runtime images disable TLS certificate verification globally, exposing outbound API traffic to interception and tampering.
+1. Affected services from the screenshot
+The screenshot identifies the following service names:
+1. LongLng
+2. Core
+3. Notify
+4. Order
+5. Payment
+6. Pharmacy
+7. Profile
+8. Rx
+9. Legacy Payment
+2. Implementation steps for all nine services
+1. Check global TLS configuration: Identify NODE_TLS_REJECT_UNAUTHORIZED=0 in Node.js runtime images, Dockerfiles, environment variables, and deployment configurations.
+
+2. Enable global TLS verification: Remove NODE_TLS_REJECT_UNAUTHORIZED=0 or set it to 1 for all affected services.
+
+3. Check AlloyDB Auth Proxy connectivity: Confirm each service's database connection goes through the local Auth Proxy.
+
+4. Disable SSL only for the local database connection: Configure Node.js PostgreSQL client with ssl: false or use sslmode=disable in the database URL.
+
+5. Keep AlloyDB encryption enabled: Auth Proxy automatically handles encrypted mTLS communication with AlloyDB.
+
+6. Validate Apigee and external API connections: Ensure HTTPS certificate verification remains enabled. Fix certificate or CA trust errors rather than bypassing validation.
+
+7. Test all nine services: Verify database connectivity, API calls, application startup, and service functionality.
+
+8. Deploy and validate: Build updated runtime images, deploy through the normal release process, rerun security scans, and collect remediation evidence.
+3. Required configuration
+Configuration	Expected setting
+Global Node.js TLS verification	Enabled
+Local Application → Auth Proxy SSL	Disabled
+Auth Proxy → AlloyDB mTLS	Enabled automatically
+Application → Apigee / External APIs	TLS verification enabled
+
+4. Error troubleshooting
+If Server does not support SSL occurs, check for ssl: true, PGSSLMODE=require, or sslmode=require in the database configuration.
+
+If HTTPS certificate verification fails, investigate the CA certificate bundle, certificate chain, or hostname mismatch.
+
+Do not disable TLS globally to resolve a database-specific SSL error.
+5. Expected outcome
+All nine affected runtime images should enforce global TLS certificate verification while maintaining successful AlloyDB connectivity through Auth Proxy.
+
+Key takeaway: Enable TLS certificate verification globally and disable SSL only for the trusted local PostgreSQL-to-Auth Proxy connection, where applicable. Complete connectivity testing and security rescanning before closing the finding.
+
