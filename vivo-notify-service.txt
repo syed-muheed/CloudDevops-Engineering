@@ -1,0 +1,50 @@
+vivo-notify-service:
+
+1. Verified findings
+Configuration	Status
+Dockerfile: NODE_TLS_REJECT_UNAUTHORIZED=0	Change required
+Dockerfile: npm config set strict-ssl false	Change required
+Cloud Run contains alloydb-proxy sidecar	Confirmed
+DATABASE_URL points to 127.0.0.1	Verified
+Code detects local database connection	Confirmed
+Code adds sslmode=disable	Confirmed
+Modified URL passed to Sequelize	Confirmed
+cloudrun.yml.template references sidecar_url	Confirmed
+
+2. Required changes
+File: Dockerfile
+
+Remove:
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+
+
+Removing these overrides restores the default certificate verification behavior for Node.js and npm, assuming no other configuration disables it.
+3. Database SSL configuration
+Your src/database/index.ts already implements:
+const isAuthProxy = env().databaseURL?.includes('127.0.0.1');
+
+if (isLocalhost || isAuthProxy) {
+  if (!databaseURL.includes('sslmode=disable')) {
+    const separator = databaseURL.includes('?') ? '&' : '?';
+    databaseURL = `${databaseURL}${separator}sslmode=disable`;
+  }
+}
+
+const sequelize = new Sequelize(databaseURL, {
+  dialect: 'postgres',
+  dialectOptions
+});
+
+
+Because the Cloud Run deployment includes an alloydb-proxy sidecar and the database URL points to 127.0.0.1, the local database SSL exception is appropriate for this architecture.
+
+The proxy manages encryption for its connection to AlloyDB.
+
+One minor improvement for later: ensure the URL does not contain a conflicting sslmode parameter before appending sslmode=disable.
+4. Report entry
+Service	Files requiring changes	Database connectivity
+vivo-notify-service	Dockerfile	Local AlloyDB Auth Proxy sidecar confirmed; SSL-disable configuration implemented
+
+Conclusion: No database SSL code change is required solely to enable global TLS verification. The confirmed remediation is in the Dockerfile, followed by build and connectivity testing.
+

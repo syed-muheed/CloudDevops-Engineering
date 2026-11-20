@@ -1,0 +1,40 @@
+vivo-order-service:
+
+1. Confirmed findings
+Configuration	Status
+NODE_TLS_REJECT_UNAUTHORIZED=0 in Dockerfile	Change required
+npm config set strict-ssl false in Dockerfile	Change required
+Cloud Run has alloydb-proxy sidecar container	Confirmed
+DATABASE_URL points to 127.0.0.1	Verified
+Code detects local Auth Proxy address	Confirmed
+Code appends sslmode=disable for local connections	Confirmed
+Modified database URL is passed to Sequelize	Confirmed
+cloudrun.yml.template references sidecar_url	Confirmed
+
+2. Required changes
+File: Dockerfile
+
+Remove these insecure configurations:
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+
+
+This will restore the default TLS certificate verification behavior in Node.js and npm.
+3. Database SSL configuration
+Your src/database/index.ts already handles the local proxy connection:
+const isAuthProxy = rawDatabaseURL.includes('127.0.0.1');
+
+if (isLocalhost || isAuthProxy) {
+  if (!databaseURL.includes('sslmode=disable')) {
+    const separator = databaseURL.includes('?') ? '&' : '?';
+    databaseURL = `${databaseURL}${separator}sslmode=disable`;
+  }
+}
+
+const sequelize = new Sequelize(databaseURL, {
+  dialect: 'postgres',
+  dialectOptions
+});
+
+
+Because DATABASE_URL points to 127.0.0.1 and the Cloud Run revision includes an alloydb-proxy sidecar, the evidence supports the intended architecture:

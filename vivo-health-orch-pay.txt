@@ -1,0 +1,43 @@
+vivo-health-orch-pay:
+
+Legacy Payment connects to a private database IP (10.66.18.46), not 127.0.0.1. Its database configuration also disables TLS certificate verification for remote connections.
+
+1. Confirmed findings
+Configuration	Status
+Database	AlloyDB – alloydb-instance
+Database endpoint	10.66.18.46 (private IP)
+Require SSL Encryption	Enabled
+Enforce mTLS via AlloyDB connectors	Not enabled
+Allow unencrypted connections	Not enabled
+Legacy Payment connection	Direct AlloyDB private IP
+Sequelize certificate validation	rejectUnauthorized: false
+
+2. What this means
+Your Legacy Payment service connects directly to AlloyDB using its private IP.
+
+AlloyDB requires SSL encryption, so the database connection must be encrypted.
+
+However, the application code currently contains:
+ssl: {
+  require: isProduction,
+  rejectUnauthorized: false
+}
+
+
+There are two separate considerations:
+- Encryption: AlloyDB requires an encrypted connection.
+- Certificate verification: The Node.js application explicitly disables verification of the database server certificate.
+Therefore, enabling global TLS verification will not automatically resolve the database-specific certificate verification issue.
+
+3. Required changes for Legacy Payment
+File	Required action
+Dockerfile	Remove NODE_TLS_REJECT_UNAUTHORIZED=0
+Dockerfile	Remove npm config set strict-ssl false
+.env.qa	Remove NODE_TLS_REJECT_UNAUTHORIZED=0
+src/database/index.ts	Review rejectUnauthorized: false and select an appropriate verified TLS connection method
+
+Important: Do not immediately change the database setting to rejectUnauthorized: true. First confirm a supported trust and certificate verification configuration for direct AlloyDB connections, or evaluate AlloyDB Auth Proxy.
+
+Legacy Payment – Direct AlloyDB connection confirmed. SSL encryption is required at the AlloyDB instance level, but the application's remote database connection disables certificate verification. Global TLS remediation is required, and database-specific certificate verification requires further implementation planning.
+
+No AlloyDB configuration change is necessary merely to address the global Node.js TLS setting. Keep Require SSL Encryption enabled.

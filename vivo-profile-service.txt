@@ -1,0 +1,47 @@
+vivo-profile-service: Database SSL Verification Complete
+1. Confirmed findings
+Configuration	                                    Status
+NODE_TLS_REJECT_UNAUTHORIZED=0 in Dockerfile	    Change required
+npm config set strict-ssl false in Dockerfile	    Change required
+Cloud Run DATABASE_URL points to 127.0.0.1	        Verified
+Code detects local database connection	            Verified
+Code appends sslmode=disable	                    Verified
+Modified URL passed to Sequelize	                Verified
+Actual AlloyDB Auth Proxy process	                Not independently verified
+
+2. Code confirmation
+
+if (isLocalhost || isAuthProxy) {
+  if (!databaseURL.includes('sslmode=disable')) {
+    const separator = databaseURL.includes('?') ? '&' : '?';
+    databaseURL = `${databaseURL}${separator}sslmode=disable`;
+  }
+}
+
+const sequelize = new Sequelize(databaseURL, {
+  dialect: 'postgres',
+  dialectOptions,
+});
+
+
+This confirms that the application modifies the database connection URL to disable PostgreSQL SSL for local connections and passes that URL to Sequelize.
+
+Note: The current implementation could append a conflicting SSL parameter if the original URL already contains sslmode=require. This should be checked during testing, but it is not a reason to disable TLS globally.
+
+
+3. Required changes for Profile Service
+File: Dockerfile
+
+Remove:
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+
+
+Use the default secure verification settings.
+
+File: src/database/index.ts
+
+No immediate change is required specifically for the global TLS remediation. Database SSL separation is already implemented. Validate it after deployment.
+4. Final report entry
+Service	Files requiring changes	Database SSL status
+vivo-profile-service	Dockerfile	Local SSL-disable logic verified and selected for 127.0.0.1; proxy process not independently confirmed

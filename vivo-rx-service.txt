@@ -1,0 +1,40 @@
+vivo-rx-service:
+
+1. Verified findings
+Dockerfile              NODE_TLS_REJECT_UNAUTHORIZED=0                  Change required 
+Dockerfile             npm config set strict-ssl false                 Change required 
+src/database/index.ts  Detects 127.0.0.1                               Verified 
+src/database/index.ts  Appends sslmode=disable for local connections   Verified 
+cloudrun.yml.template  References Secret Manager sidecar_url           Verified 
+Cloud Run DATABASE_URL  Points to 127.0.0.1                            Verified 
+
+2. Required changes
+File: Dockerfile
+
+Remove these insecure settings:
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+
+
+Use Node.js and npm's default certificate verification, or explicitly enable verification.
+3. Database SSL configuration
+Your src/database/index.ts contains:
+const rawDatabaseURL = env().databaseURL || '';
+const isLocalhost = rawDatabaseURL.includes('localhost');
+const isAuthProxy = rawDatabaseURL.includes('127.0.0.1');
+
+let databaseURL = rawDatabaseURL;
+
+if (isLocalhost || isAuthProxy) {
+  if (!databaseURL.includes('sslmode=disable')) {
+    const separator = databaseURL.includes('?') ? '&' : '?';
+    databaseURL = `${databaseURL}${separator}sslmode=disable`;
+  }
+}
+
+
+This confirms that the application is designed to disable PostgreSQL SSL negotiation for local database connections.
+
+4. Report entry
+Service	Confirmed changes required	Database SSL assessment
+vivo-rx-service	Dockerfile – 2 settings	Local sslmode=disable logic verified; actual database client usage and Auth Proxy process not yet confirmed

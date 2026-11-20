@@ -1,0 +1,30 @@
+vivo-pharmacy-service: Verification Complete
+Based on your code screenshots and your confirmation that Cloud Run DATABASE_URL points to 127.0.0.1, we have verified the database-specific SSL configuration.
+Verified findings
+Configuration	Status
+Global TLS disabled in Dockerfile	Change required
+npm strict-ssl false in Dockerfile	Change required
+Cloud Run DATABASE_URL uses 127.0.0.1	Verified
+Code detects 127.0.0.1	Verified
+Code adds sslmode=disable for local connections	Verified
+Modified databaseURL passed to Sequelize	Verified
+AlloyDB Auth Proxy process running	Not independently verified
+
+Required changes for Pharmacy Service
+File: Dockerfile
+
+Remove:
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+
+
+Use the default secure TLS settings or explicitly enable certificate verification.
+
+File: src/database/index.ts
+
+No immediate change is required solely to enable global TLS verification. The existing code already handles local PostgreSQL SSL separately.
+
+However, the URL handling should be reviewed if conflicting sslmode parameters are present.
+Report entry
+Service	Files requiring changes	Database SSL status
+vivo-pharmacy-service	Dockerfile	Local SSL-disable logic implemented and selected for 127.0.0.1; Auth Proxy process not independently confirmed
