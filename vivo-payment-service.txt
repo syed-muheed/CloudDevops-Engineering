@@ -50,3 +50,5 @@ Modified URL passed to Sequelize
 AlloyDB Auth Proxy running on localhost	(Not independently verified)
 Global TLS disabled in Dockerfile	
 npm strict-ssl false	
+
+need to remove lines that disable TLS verification on the dockerfile
