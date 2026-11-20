@@ -1,0 +1,52 @@
+vivo-payment-service:
+
+1. src/database/index.ts — Database connection
+Your code identifies three database connection scenarios:
+Connection type	Configuration shown
+Local PostgreSQL	sslmode=disable
+Remote database via VPN	ssl: { require: true, rejectUnauthorized: false } (documented in comment)
+AlloyDB Auth Proxy (127.0.0.1)	sslmode=disable
+
+const isLocalhost =
+  env().databaseURL?.includes('localhost');
+
+const isAuthProxy =
+  env().databaseURL?.includes('127.0.0.1');
+
+let databaseURL = env().databaseURL || '';
+
+if (isLocalhost || isAuthProxy) {
+  if (!databaseURL.includes('sslmode=disable')) {
+    const separator = databaseURL.includes('?') ? '&' : '?';
+    databaseURL = `${databaseURL}${separator}sslmode=disable`;
+  }
+}
+
+
+2. src/config/app.config.ts — HTTPS certificate verification
+static readonly SSL_CONFIG = {
+  REJECT_UNAUTHORIZED:
+    process.env.NODE_ENV === 'production'
+}
+
+File	    						Finding	
+Dockerfile							Global TLS verification disabled	
+Dockerfile							npm strict SSL disabled	
+src/database/index.ts				Local database SSL-disable logic exists	
+src/config/app.config.ts			HTTPS verification setting depends on NODE_ENV	
+src/utils/secureTransport.util.ts	Certificate verification enabled
+src/database/index.ts				Local SSL-disable logic exists
+src/interfaces/ISnapPay.ts			Optional TLS property declaration
+
+**The SSL_CONFIG setting does not automatically disable TLS verification simply because it is declared. It must be used by the application's HTTPS client configuration.
+
+
+Payment Service –  Verification
+
+DATABASE_URL hostname is 127.0.0.1	
+Application detects 127.0.0.1	
+Application adds sslmode=disable	
+Modified URL passed to Sequelize	
+AlloyDB Auth Proxy running on localhost	(Not independently verified)
+Global TLS disabled in Dockerfile	
+npm strict-ssl false	
