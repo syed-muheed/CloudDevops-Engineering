@@ -1,0 +1,130 @@
+# Northwell – TLS Certificate Verification Security Assessment Report
+
+
+
+## 1. Objective
+
+To identify services where TLS certificate verification is disabled using `NODE_TLS_REJECT_UNAUTHORIZED=0` and document the files requiring configuration changes.
+
+The assessment also covers the `npm config set strict-ssl false` setting identified in the Dockerfiles.
+
+## 2. Summary of Findings
+
+A repository-level review was conducted across nine Node.js services.
+
+**Key findings:**
+- All 9 services contain `NODE_TLS_REJECT_UNAUTHORIZED=0` in their Dockerfiles.
+- All 9 services contain `npm config set strict-ssl false` in their Dockerfiles.
+- Legacy Payment has an additional `NODE_TLS_REJECT_UNAUTHORIZED=0` configuration in `.env.qa`.
+- A total of **19 configuration findings across 10 files** were identified.
+- No configuration changes have been implemented yet.
+
+## 3. Service-Wise Findings
+
+| S.No. | Service Name | File(s) Requiring Changes | Findings |
+|---|---|---|---|
+| 1 | logging-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 2 | vivo-core-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 3 | vivo-notify-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 4 | vivo-order-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 5 | vivo-payment-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 6 | vivo-pharmacy-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 7 | vivo-profile-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 8 | vivo-rx-service | Dockerfile | Global TLS verification disabled; npm strict SSL disabled |
+| 9 | Legacy Payment (vivo-health-orch-pay…) | Dockerfile, .env.qa | Global TLS verification disabled in both files; npm strict SSL disabled in Dockerfile |
+
+*Note: The full Legacy Payment repository name was truncated in the provided screenshot.*
+
+## 4. Existing Insecure Configuration
+
+The following configuration was identified in all nine Dockerfiles:
+
+```dockerfile
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+```
+
+**Security concerns:**
+
+1. `NODE_TLS_REJECT_UNAUTHORIZED=0` disables TLS certificate verification for Node.js TLS connections.
+2. `npm config set strict-ssl false` disables SSL certificate verification for npm package registry connections.
+3. These configurations can expose communication to man-in-the-middle attacks and untrusted certificates.
+
+**Additional finding – Legacy Payment:**
+
+The `.env.qa` file contains:
+
+```dotenv
+NODE_TLS_REJECT_UNAUTHORIZED=0
+```
+
+This setting was documented as being used for testing.
+
+## 5. Recommended Configuration Changes
+
+**Dockerfile changes for all nine services:**
+
+Current:
+
+```dockerfile
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+```
+
+Recommended:
+
+```dockerfile
+ENV NODE_TLS_REJECT_UNAUTHORIZED=1
+RUN npm config set strict-ssl true
+```
+
+Alternatively, remove both insecure overrides and use the default certificate verification settings.
+
+**Legacy Payment:**
+
+Remove or update `NODE_TLS_REJECT_UNAUTHORIZED=0` in `.env.qa`.
+
+## 6. AlloyDB Auth Proxy Consideration
+
+The Northwell application architecture uses AlloyDB Auth Proxy for database connectivity.
+
+The Auth Proxy handles encrypted mTLS communication with AlloyDB. Therefore, enabling global TLS certificate verification should be managed separately from PostgreSQL SSL configuration for a trusted local Auth Proxy connection.
+
+**Expected configuration:**
+
+| Connection | TLS Configuration |
+|---|---|
+| Node.js application → External APIs / Apigee | TLS certificate verification enabled |
+| Node.js application → Local AlloyDB Auth Proxy | SSL disabled where applicable |
+| AlloyDB Auth Proxy → AlloyDB | Proxy-managed mTLS enabled |
+| Global Node.js runtime | TLS certificate verification enabled |
+
+The application database configuration may require `ssl: false` when connecting to a local Auth Proxy. This must be confirmed for each applicable service before implementation.
+
+## 7. Implementation and Validation Steps
+
+1. Update TLS certificate verification settings in all nine Dockerfiles.
+2. Update the Legacy Payment `.env.qa` configuration.
+3. Verify the database SSL configuration for services using AlloyDB Auth Proxy.
+4. Rebuild Docker images and validate npm package installation.
+5. Test application startup and database connectivity.
+6. Validate HTTPS API connectivity through Apigee and other external endpoints.
+7. Check deployment-level environment variables to ensure TLS verification is not disabled again.
+8. Run security scans to confirm remediation.
+
+## 8. Assessment Limitations
+
+The repository search results confirmed the locations containing `NODE_TLS_REJECT_UNAUTHORIZED` in the reviewed repositories.
+
+However, additional TLS bypass patterns, Kubernetes/Helm configurations, runtime environment overrides, and actual database connection settings have not yet been fully verified.
+
+Therefore, remediation closure requires additional validation after implementing the identified changes.
+
+## 9. Conclusion
+
+The review identified **19 TLS-related configuration findings across 10 files in nine Northwell services**.
+
+All nine services require changes to their Dockerfile TLS configuration. Legacy Payment additionally requires a change in `.env.qa`.
+
+The recommended approach is to enable TLS certificate verification globally while maintaining appropriate database-specific SSL settings for AlloyDB Auth Proxy.
+
