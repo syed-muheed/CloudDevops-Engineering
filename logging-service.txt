@@ -1,0 +1,48 @@
+logging-service:
+
+1. Confirmed findings
+Configuration	Status
+Dockerfile: NODE_TLS_REJECT_UNAUTHORIZED=0	Change required
+Dockerfile: npm config set strict-ssl false	Change required
+Cloud Run APPLOG_DATABASE_URL points to 127.0.0.1	Verified
+Cloud Run contains alloydb-proxy sidecar	Verified
+src/database/index.ts detects 127.0.0.1	Verified
+src/database/index.ts adds sslmode=disable	Verified
+Modified URL is passed to Sequelize	Verified
+Deployment references applog_database_url secret	Verified
+
+2. Required changes
+File: Dockerfile
+
+Remove:
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+
+
+This allows Node.js and npm to use certificate verification by default, provided no other configuration overrides it.
+3. Database SSL configuration
+Your src/database/index.ts shows:
+const isAuthProxy =
+  env().ApplogDatabaseURL?.includes('127.0.0.1');
+
+if (isLocalhost || isAuthProxy) {
+  if (!databaseURL.includes('sslmode=disable')) {
+    const separator = databaseURL.includes('?') ? '&' : '?';
+    databaseURL = `${databaseURL}${separator}sslmode=disable`;
+  }
+}
+
+const sequelize = new Sequelize(databaseURL, {
+  dialect: 'postgres',
+  dialectOptions
+});
+
+
+This confirms that the application disables PostgreSQL SSL negotiation for the local proxy connection, while Auth Proxy handles encryption to AlloyDB.
+
+One minor improvement for future review: avoid appending conflicting sslmode parameters if the original URL already contains another SSL mode.
+4. Final report entry
+Service	File requiring changes	Database SSL assessment
+logging-service	Dockerfile	Local AlloyDB Auth Proxy confirmed; database-specific SSL disabling implemented
+
+Conclusion: No database SSL code change is required solely to enable global TLS certificate verification. The confirmed remediation is to remove the two insecure Dockerfile settings, then rebuild and test database and external API connectivity.

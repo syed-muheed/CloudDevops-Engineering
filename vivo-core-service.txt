@@ -1,0 +1,15 @@
+vivo-core-service:
+
+Configuration	                                    Status
+DATABASE_URL points to 127.0.0.1	                Verified
+alloydb-proxy sidecar deployed alongside app	    Verified
+Code adds sslmode=disable for local connections	    Verified
+Sequelize uses ssl: false	                        Verified
+NODE_TLS_REJECT_UNAUTHORIZED=0 in Dockerfile	    Change required
+npm config set strict-ssl false in Dockerfile	    Change required
+
+Final Core Service report entry
+Service	File requiring changes	Database connectivity
+vivo-core-service	Dockerfile	Local AlloyDB Auth Proxy confirmed; database-specific SSL disabling implemented
+
+Conclusion: Core Service already separates local database SSL from global Node.js TLS. No database SSL code change is required solely for the global TLS remediation.
